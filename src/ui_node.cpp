@@ -23,7 +23,7 @@ class UINode : public rclcpp::Node{
         timer_ = this->create_wall_timer(
             std::chrono::milliseconds(20), std::bind(&UINode::bridgeVelCallback, this));
         timer_->cancel(); //stop timer
-        publishTime = 1; // tempo di pubblicazione in secondi
+        publishTime = 3; // tempo di pubblicazione in secondi
         isPublishing = false;
     }
     void runNode(){
@@ -70,6 +70,8 @@ class UINode : public rclcpp::Node{
             vel_publisher->publish(message);
         }
         else{
+            //stop robot
+            stopRobot();
             //stop timer
             timer_->cancel();
             isPublishing = false;
@@ -92,6 +94,14 @@ class UINode : public rclcpp::Node{
         response->avg_lin = avg_lin;
         response->avg_ang = avg_ang;
         RCLCPP_INFO(this->get_logger(), "Average velocity calculated: avg_lin=%f, avg_ang=%f", avg_lin, avg_ang);
+    }
+    //Stop function
+    void stopRobot(){
+        geometry_msgs::msg::Twist stop_cmd;
+        stop_cmd.linear.x = 0.0;
+        stop_cmd.angular.z = 0.0;
+        vel_publisher->publish(stop_cmd);
+        RCLCPP_INFO(this->get_logger(), "Robot stopped.");
     }
 
 
