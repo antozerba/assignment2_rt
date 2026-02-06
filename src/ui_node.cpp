@@ -1,6 +1,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "custom_interface/srv/average_vel.hpp"
+#include "custom_interface/srv/treshold.hpp"
+
 #include <memory>
 
 class UINode : public rclcpp::Node{
@@ -18,6 +20,7 @@ class UINode : public rclcpp::Node{
                 avgServiceCallBack(response);
             }
         );
+        tresh_client = this->create_client<custom_interface::srv::Treshold>("set_treshold");
 
 
         timer_ = this->create_wall_timer(
@@ -42,6 +45,28 @@ class UINode : public rclcpp::Node{
     }
 
     void getInput(){
+        std::cout << "Do you want to set a new treshold? (y/n): ";
+        char choice;
+        std::cin >> choice;
+        if(choice == 'y' || choice == 'Y'){
+            float new_tresh;
+            insertTreshold(new_tresh);
+            //calling service
+            auto request = std::make_shared<custom_interface::srv::Treshold::Request>();
+            request->input_tresh = new_tresh;
+            while(!tresh_client->wait_for_service(std::chrono::seconds(1))){
+                RCLCPP_WARN(this->get_logger(), "Waiting for treshold service to be available...");
+            }
+            auto result_future = tresh_client->async_send_request(request);
+            // wait for the result.
+            if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future) ==
+                rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_INFO(this->get_logger(), "Treshold set successfully. Ack: %c", result_future.get()->ack);
+            } else {
+                RCLCPP_ERROR(this->get_logger(), "Failed to call treshold service");
+            }
+        }
         geometry_msgs::msg::Twist inputTwist;
         std::cout << "Insert Linear Vel: " << std::endl;
         std::cin >> inputTwist.linear.x;
@@ -55,6 +80,18 @@ class UINode : public rclcpp::Node{
         isPublishing = true;
 
 
+    }
+    void insertTreshold(float & tresh){
+        std::cout << "Insert new treshold (float > 0): " << std::endl;
+        while(true){
+            std::cin >> tresh;
+            if(tresh > 0.0){
+                break;
+            }
+            else{
+                std::cout << "Invalid treshold. Please insert a float value greater than 0: " << std::endl;
+            }
+        }
     }
     //PUB CALLBACK
     void bridgeVelCallback(){
@@ -111,6 +148,9 @@ class UINode : public rclcpp::Node{
 
     //Service 
     rclcpp::Service<custom_interface::srv::AverageVel>::SharedPtr avg_service;
+
+    //Client 
+    rclcpp::Client<custom_interface::srv::Treshold>::SharedPtr tresh_client;
 
     //Var
     rclcpp::TimerBase::SharedPtr timer_;

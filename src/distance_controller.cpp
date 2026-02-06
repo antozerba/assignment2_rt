@@ -2,6 +2,8 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"   
 #include "custom_interface/msg/info_robot.hpp"
+#include "custom_interface/srv/treshold.hpp"
+
 #include <memory>
 #include <limits>
 
@@ -25,22 +27,28 @@ class ControllerNode : public rclcpp::Node{
             "bridge_vel", 10, std::bind(&ControllerNode::uiCallBack, this, std::placeholders::_1));
 
         info_publisher = this->create_publisher<custom_interface::msg::InfoRobot>("info", 10);
-
-
-        //Timer Testing
         info_timer = this->create_wall_timer(
             std::chrono::milliseconds(100), std::bind(&ControllerNode::infoCallBack, this)
         );
+        tresh_service = this->create_service<custom_interface::srv::Treshold>(
+            "set_treshold",
+            //lamba
+            [this](const std::shared_ptr<custom_interface::srv::Treshold::Request> request, 
+                std::shared_ptr<custom_interface::srv::Treshold::Response> response){
+                if(request->input_tresh <= 0.0){
+                    response->ack = '0'; //negative acknowledgment
+                    return;
+                }
+                this->threshold = request->input_tresh;
+                RCLCPP_INFO(this->get_logger(), "Treshold updated to: %f", this->threshold);
+                response->ack = '1'; //aknowledgment
+            }
+        );
 
-
+        //Initialization private var
         outputVel = geometry_msgs::msg::Twist();
         minDistance =   std::numeric_limits<float>::infinity(); //set to max
         collisionDetected = false;
-        
-        
-
-
-
     }
     private:
 
@@ -132,6 +140,7 @@ class ControllerNode : public rclcpp::Node{
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_subscriber;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr ui_subscriber;
     rclcpp::Publisher<custom_interface::msg::InfoRobot>::SharedPtr info_publisher;
+    rclcpp::Service<custom_interface::srv::Treshold>::SharedPtr tresh_service;
    
     rclcpp::TimerBase::SharedPtr info_timer;
     geometry_msgs::msg::Twist outputVel;
